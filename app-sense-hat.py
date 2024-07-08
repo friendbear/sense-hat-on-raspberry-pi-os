@@ -17,12 +17,11 @@ c.execute('''CREATE TABLE IF NOT EXISTS visitor_log
              (id INTEGER PRIMARY KEY AUTOINCREMENT, entry_time TEXT, exit_time TEXT)''')
 conn.commit()
 
-# メニュー項目
-menu_items = ["Start Logging", "Stop Logging", "Visitor Log"]
-menu_colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+# メニュー項目の設定（12個）
+menu_items = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255), (255, 0, 255),
+              (128, 0, 0), (0, 128, 0), (0, 0, 128), (128, 128, 0), (0, 128, 128), (128, 0, 128)]
 current_item = 0
 
-logging = False
 visitor_logging = False
 entry_time = None
 
@@ -32,49 +31,55 @@ lock = Lock()
 
 # メニューを表示する関数
 def display_menu():
-    global current_item
     sense.clear()
-    for i, item in enumerate(menu_items):
+    for i in range(12):
+        x = i % 4
+        y = i // 4
         if i == current_item:
-            sense.show_message(item, text_colour=menu_colors[i], scroll_speed=0.05)
+            sense.set_pixel(x, y, 255, 255, 255)  # 選択中の項目は白色で表示
         else:
-            sense.show_message(item, text_colour=(255, 255, 255), scroll_speed=0.05)
-    time.sleep(0.5)  # 少し待ってから次の表示
+            sense.set_pixel(x, y, menu_items[i])
+    time.sleep(0.1)  # 少し待ってから次の表示
 
 # センサーのデータをSQLiteに保存する関数
 def log_sensor_data():
-    temp = sense.get_temperature()
-    humidity = sense.get_humidity()
-    pressure = sense.get_pressure()
-    timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-    c.execute("INSERT INTO sensor_data (timestamp, temperature, humidity, pressure) VALUES (?, ?, ?, ?)", 
-              (timestamp, temp, humidity, pressure))
-    conn.commit()
+    while True:
+        temp = sense.get_temperature()
+        humidity = sense.get_humidity()
+        pressure = sense.get_pressure()
+        timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+        with lock:
+            c.execute("INSERT INTO sensor_data (timestamp, temperature, humidity, pressure) VALUES (?, ?, ?, ?)", 
+                      (timestamp, temp, humidity, pressure))
+            conn.commit()
+        time.sleep(10)  # 10秒ごとにデータをログ
 
 # 訪問者の入室時刻を記録する関数
 def log_entry_time():
     global entry_time
     entry_time = time.strftime('%Y-%m-%d %H:%M:%S')
-    c.execute("INSERT INTO visitor_log (entry_time) VALUES (?)", (entry_time,))
-    conn.commit()
+    with lock:
+        c.execute("INSERT INTO visitor_log (entry_time) VALUES (?)", (entry_time,))
+        conn.commit()
 
 # 訪問者の退出時刻を記録する関数
 def log_exit_time():
     global entry_time
     if entry_time:
         exit_time = time.strftime('%Y-%m-%d %H:%M:%S')
-        c.execute("UPDATE visitor_log SET exit_time = ? WHERE entry_time = ?", (exit_time, entry_time))
-        conn.commit()
+        with lock:
+            c.execute("UPDATE visitor_log SET exit_time = ? WHERE entry_time = ?", (exit_time, entry_time))
+            conn.commit()
         entry_time = None
 
 # ジョイスティックのイベントを処理する関数
-def joystick_up(event):
+def joystick_left(event):
     if event.action == "pressed":
-        event_queue.put("up")
+        event_queue.put("left")
 
-def joystick_down(event):
+def joystick_right(event):
     if event.action == "pressed":
-        event_queue.put("down")
+        event_queue.put("right")
 
 def joystick_middle(event):
     if event.action == "pressed":
@@ -82,32 +87,18 @@ def joystick_middle(event):
 
 # イベントを処理するスレッド
 def event_handler():
-    global current_item, logging, visitor_logging
+    global current_item, visitor_logging
     while True:
         event = event_queue.get()
         with lock:
-            if event == "up":
+            if event == "left":
                 current_item = (current_item - 1) % len(menu_items)
                 display_menu()
-            elif event == "down":
+            elif event == "right":
                 current_item = (current_item + 1) % len(menu_items)
                 display_menu()
             elif event == "middle":
-                if current_item == 0 and not logging:
-                    logging = True
-                    sense.show_message("Logging Started", text_colour=(0, 255, 0))
-                    while logging:
-                        log_sensor_data()
-                        time.sleep(10)  # 10秒ごとにデータをログ
-                        for event in sense.stick.get_events():
-                            if event.action == "pressed" and event.direction == "middle":
-                                logging = False
-                                sense.show_message("Logging Stopped", text_colour=(255, 0, 0))
-                                break
-                elif current_item == 1 and logging:
-                    logging = False
-                    sense.show_message("Logging Stopped", text_colour=(255, 0, 0))
-                elif current_item == 2:
+                if current_item == 2:
                     if not visitor_logging:
                         log_entry_time()
                         sense.show_message("Entry Logged", text_colour=(0, 255, 0))
@@ -118,8 +109,8 @@ def event_handler():
                         visitor_logging = False
 
 # ジョイスティックのイベントリスナーを設定
-sense.stick.direction_up = joystick_up
-sense.stick.direction_down = joystick_down
+sense.stick.direction_left = joystick_left
+sense.stick.direction_right = joystick_right
 sense.stick.direction_middle = joystick_middle
 
 # 初期メニュー表示
@@ -128,6 +119,10 @@ display_menu()
 # イベントハンドラースレッドを開始
 handler_thread = Thread(target=event_handler, daemon=True)
 handler_thread.start()
+
+# センサーデータを記録するスレッドを開始
+sensor_thread = Thread(target=log_sensor_data, daemon=True)
+sensor_thread.start()
 
 pause()  # プログラムを終了させずに待機
 
