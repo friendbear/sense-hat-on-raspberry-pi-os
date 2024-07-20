@@ -30,7 +30,7 @@ gpiozero==2.0
 greenlet==2.0.2
 guizero==1.4.0
 html5lib==1.1
-idna==3.3
+idna==3.7
 importlib-metadata==4.12.0
 isort==5.6.4
 itsdangerous==2.1.2
