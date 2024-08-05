@@ -150,7 +150,7 @@ def display_disco():
     for _ in range(20):
         color = random.choice(colors)
         sense.clear(color)
-        time.sleep(0.1)
+        time.sleep(0.05)
     setscreen()
 
 # 初期状態を設定
