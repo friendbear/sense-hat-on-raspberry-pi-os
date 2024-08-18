@@ -69,7 +69,7 @@ pycairo==1.20.1
 pycryptodomex==3.11.0
 pycups==2.0.1
 pygame==2.1.2
-Pygments==2.14.0
+Pygments==2.15.0
 PyGObject==3.42.2
 pyinotify==0.9.6
 PyJWT==2.6.0
