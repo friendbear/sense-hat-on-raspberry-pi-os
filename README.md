@@ -40,6 +40,14 @@ Copy code
 pip freeze > requirements.txt
 ```
 
+### Web based Sense Hat Emurator
+
+* <https://trinket.io/sense-hat>
+
+### Free sound
+
+* <https://freesound.org/people/theplax/sounds/560576/>
+
 ### ライセンス
 
 このプロジェクトはMITライセンスの下で公開されています。
